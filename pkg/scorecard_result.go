@@ -19,9 +19,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/olekukonko/tablewriter"
 
 	"github.com/ossf/scorecard/checker"
 )
@@ -97,15 +100,41 @@ func (r *ScorecardResult) AsString(showDetails bool, writer io.Writer) error {
 		}
 		return sortedChecks[i].Pass
 	})
-	fmt.Fprintf(writer, "Repo: %s\n", r.Repo)
-	for _, checkResult := range sortedChecks {
-		fmt.Fprintf(writer, "%s %d %s\n", displayResult(checkResult.Pass), checkResult.Confidence, checkResult.Name)
+
+	data := make([][]string, len(sortedChecks))
+	for i, row := range sortedChecks {
+		var x []string
 		if showDetails {
-			for _, d := range checkResult.Details {
-				fmt.Fprintf(writer, "%s\n", d)
-			}
+			x = make([]string, 4)
+		} else {
+			x = make([]string, 3)
 		}
+		x[0] = displayResult(row.Pass)
+		x[1] = strconv.Itoa(row.Confidence)
+		x[2] = row.Name
+		if showDetails {
+			details := ""
+			for _, d := range row.Details {
+				details += fmt.Sprintf("%s\n", d)
+			}
+			x[3] = details
+		}
+		data[i] = x
 	}
+
+	fmt.Fprintf(writer, "Repo: %s\n", r.Repo)
+	table := tablewriter.NewWriter(os.Stdout)
+	if showDetails {
+		table.SetHeader([]string{"Status", "Confidence", "Name", "Details"})
+	} else {
+		table.SetHeader([]string{"Status", "Confidence", "Name"})
+	}
+	table.SetBorders(tablewriter.Border{Left: true, Top: true, Right: true, Bottom: true})
+	table.SetRowSeparator("-")
+	table.SetRowLine(true)
+	table.SetCenterSeparator("|")
+	table.AppendBulk(data)
+	table.Render()
 	return nil
 }
 
